@@ -32,3 +32,25 @@ The plan has 11 steps: test helper, factory migration, fixture rename, test move
 - `test/helpers/subagent-session-io.ts`: `DEFAULT_AGENT_CONFIG` is a second `AgentConfig` baseline that could build on `makeAgentConfig`.
 - `test/display.test.ts`, `test/tools/agent-tool.test.ts`, `test/tools/spawn-config.test.ts`, `test/helpers/make-deps.ts`: these still build bare `AgentConfig` literals.
 - `src/session/prompts.ts`: `PromptShape` could become a boolean once only `"section" | "unanchored"` remain.
+
+## Stage: Implementation — TDD (2026-10-25T02:47:22Z)
+
+### Session summary
+
+All 11 plan steps landed as separate commits, plus one review-fix commit.
+In order: the shared `makeAgentConfig` helper and factory migrations, the fixture rename, moving the tests to the section fixture, removing the footer and lead-in arms, the unanchored `<skills>`-wrapper `fix:`, comment cleanup, regrouping by anchor, and two docs commits.
+The pi-subagents suite went from 2198 to 2189 tests: `prompts.test.ts` dropped from 81 to 70, and the new helper test file added 2.
+
+### Observations
+
+- Every killing mutation the plan named killed exactly the tests it predicted.
+  The step-5 mutation table and the step-7 pair (heading-unconditional, wrapped-only) matched, and step 7's red also caught the tightened tool-surface pin.
+- Deviation: step 8's verification grep (`src` plus `test/session`) still matched `prompts.test.ts`'s fixture doc and describe name, which the plan had scheduled for step 9; the grep reads clean after step 9.
+- Deviation: step 5 put the unanchored tests in a `no <cwd> section` describe at once (renaming `no anchor present`), and step 7 moved the catalogue test there, so step 9 only dissolved the version-named section describe and hoisted `PARENT_CONTEXT`.
+- Python edits bypass `pi-autoformat`, so the step-3 literal rewrite landed mis-indented and was collapsed to one-line `makeAgentConfig({...})` calls by a second script; Biome does not reformat this file's indentation.
+- An em-dash or `\u2265` typed in an `Edit` `oldText`/`newText` arrived as an escape three times; the fix was copying from a fresh read or substituting in a script.
+- Pre-completion reviewer: WARN, then PASS on the delta.
+  The WARN findings were a stale "footer" comment in `session-config.test.ts` and a byte-for-byte test that asserted only `startsWith(IDENTITY + "\n\n")`; both are fixed in the commit `test(pi-subagents): pin the skills-section cut byte for byte`, whose assertion was mutation-checked.
+- Reviewer note, accepted: a forced prompt that carries a literal `Current working directory: /parent` line and no catalogue now keeps that line, where the footer arm used to cut it.
+  Only extension-authored text reaches it, and the plan's "no reachable output change" claim covers Pi-rendered prompts only.
+  The reviewer also observed that a Pi-shaped prompt whose `<cwd>` names another directory now falls to the unanchored arm and is cut at the `<skills>` wrapper, which the plan's edge-case table omits.
