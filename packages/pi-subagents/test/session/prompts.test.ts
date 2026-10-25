@@ -276,6 +276,11 @@ describe("buildAgentPrompt", () => {
     /** The identity layers Pi writes ahead of anything it resolves per session. */
     const IDENTITY = "You are a parent coding agent.\nCurrent date: 2026-07-25";
 
+    /** What the parent's own directory contributed to its prompt. */
+    const PARENT_CONTEXT: ContextFile[] = [
+      { path: `${PARENT_CWD}/AGENTS.md`, content: "Repo rules." },
+    ];
+
     /** A skill fixture, rendered through Pi's own prompt formatter below. */
     function skill(name: string): Skill {
       const filePath = `/parent/.pi/skills/${name}/SKILL.md`;
@@ -298,6 +303,64 @@ describe("buildAgentPrompt", () => {
         .split("\n")
         .find((line) => line.length > 0) ?? "";
 
+    /**
+     * A parent prompt as Pi's section renderer assembles it: tagged sections
+     * joined by blank lines. The byte shapes are verified against the pinned
+     * SDK's dist (1.0.0) — `buildSystemPromptSections` wraps each section as
+     * `<name>\n…\n</name>`, pi-ai's `getSystemMessageText` joins them with
+     * `"\n\n"`, and `renderProjectContext` writes the lead-in directly below
+     * the opening tag — so the fixtures cannot drift from the shapes the
+     * anchors must recognize. The skills layer goes through Pi's own
+     * formatter, which the renderer trims into the section, so an upstream
+     * rewording of its heading fails these tests rather than silently
+     * changing which layer the inherited prompt is cut at.
+     */
+    function parentPrompt(
+      layers: {
+        identity?: string;
+        tools?: string;
+        rules?: string;
+        docs?: string;
+        contextFiles?: ContextFile[];
+        skills?: Skill[];
+        cwd?: string;
+        extensionTail?: string;
+      } = {},
+    ): string {
+      const sections: string[] = [];
+      if (layers.tools !== undefined) {
+        sections.push(`<tools>\n${layers.tools}\n</tools>`);
+      }
+      if (layers.rules !== undefined) {
+        sections.push(`<rules>\n${layers.rules}\n</rules>`);
+      }
+      if (layers.docs !== undefined) {
+        sections.push(`<docs>\n${layers.docs}\n</docs>`);
+      }
+      if (layers.contextFiles) {
+        const content = [
+          "Project-specific instructions and guidelines:",
+          ...layers.contextFiles.map(
+            (file) =>
+              `<project_instructions path="${file.path}">\n${file.content}\n</project_instructions>`,
+          ),
+        ].join("\n\n");
+        sections.push(`<project_context>\n${content}\n</project_context>`);
+      }
+      if (layers.skills) {
+        sections.push(
+          `<skills>\n${formatSkillsForPrompt(layers.skills).trim()}\n</skills>`,
+        );
+      }
+      if (layers.cwd !== undefined) {
+        sections.push(`<cwd>\n${layers.cwd}\n</cwd>`);
+      }
+      const prompt = [layers.identity ?? IDENTITY, ...sections].join("\n\n");
+      return layers.extensionTail !== undefined
+        ? `${prompt}\n\n${layers.extensionTail}`
+        : prompt;
+    }
+
     function appendConfig(): AgentConfig {
       return makeAgentConfig({ name: "twin", systemPrompt: "", promptMode: "append" });
     }
@@ -306,7 +369,7 @@ describe("buildAgentPrompt", () => {
       return makeAgentConfig({ name: "specialist", systemPrompt: "You are a specialist.", promptMode: "replace" });
     }
 
-    describe("skills-catalogue anchor", () => {
+    describe("skills-section anchor", () => {
       it("cuts the inherited catalogue in append mode", () => {
         const prompt = buildAgentPrompt(appendConfig(), "/workspace", env, {
           systemPrompt: parentPrompt({
@@ -386,138 +449,6 @@ describe("buildAgentPrompt", () => {
         expect(prompt.startsWith(`${quoted}\n\n<active_agent`)).toBe(true);
         expect(prompt).not.toContain("<cwd>");
       });
-    });
-
-    describe("cwd-footer anchor", () => {
-      it("cuts the inherited cwd section in append mode", () => {
-        const prompt = buildAgentPrompt(appendConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({ cwd: PARENT_CWD }),
-          cwd: PARENT_CWD,
-        });
-
-        expect(prompt).not.toContain("<cwd>");
-      });
-
-      it("normalizes backslashes the way Pi's prompt builder does", () => {
-        // buildSystemPrompt writes `cwd.replace(/\\/g, "/")`, so a Windows parent
-        // cwd reaches the prompt with forward slashes.
-        const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({ cwd: "C:/repo" }),
-          cwd: "C:\\repo",
-        });
-
-        expect(prompt).not.toContain("<cwd>");
-      });
-    });
-
-    // Issue #918: `<project_context>` names each context file by absolute path,
-    // so a child a WorkspaceProvider relocated inherits a machine-structured
-    // claim about a directory that is not its own — the #640 defect in the one
-    // per-session layer that sits inside the shared prefix.
-    describe("project-context anchor", () => {
-      /** What the parent's own directory contributed to its prompt. */
-      const PARENT_CONTEXT: ContextFile[] = [
-        { path: `${PARENT_CWD}/AGENTS.md`, content: "Repo rules." },
-      ];
-
-      it("cuts the inherited block for a relocated child in append mode", () => {
-        const prompt = buildAgentPrompt(appendConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({
-            contextFiles: PARENT_CONTEXT,
-            skills: [skill("colgrep")],
-            cwd: PARENT_CWD,
-          }),
-          cwd: PARENT_CWD,
-        });
-
-        expect(prompt).not.toContain("<project_context>");
-        expect(prompt).not.toContain(`path="${PARENT_CWD}/AGENTS.md"`);
-      });
-
-      it("keeps the inherited block when the child shares the parent's cwd", () => {
-        const prompt = buildAgentPrompt(replaceConfig(), PARENT_CWD, env, {
-          systemPrompt: parentPrompt({
-            contextFiles: PARENT_CONTEXT,
-            skills: [skill("colgrep")],
-            cwd: PARENT_CWD,
-          }),
-          cwd: PARENT_CWD,
-        });
-
-        expect(prompt).toContain(`path="${PARENT_CWD}/AGENTS.md"`);
-        expect(prompt).toContain("Project-specific instructions and guidelines:");
-      });
-    });
-
-    /**
-     * A parent prompt as pi ≥0.86's section renderer assembles it: tagged
-     * sections joined by blank lines, no footer line. The byte shapes are
-     * verified against the 0.86.1 SDK dist — `buildSystemPromptSections`
-     * wraps each section as `<name>\n…\n</name>` and joins them with `"\n\n"`,
-     * and 0.86's `renderProjectContext` drops the blank line below the opening
-     * tag that 0.85's wrote — so the fixtures cannot drift from the shapes the
-     * anchors must recognize. The skills layer still goes through Pi's own
-     * formatter: its heading is unchanged in 0.86, and the renderer trims it
-     * into the section.
-     */
-    function parentPrompt(
-      layers: {
-        identity?: string;
-        tools?: string;
-        rules?: string;
-        docs?: string;
-        contextFiles?: ContextFile[];
-        skills?: Skill[];
-        cwd?: string;
-        extensionTail?: string;
-      } = {},
-    ): string {
-      const sections: string[] = [];
-      if (layers.tools !== undefined) {
-        sections.push(`<tools>\n${layers.tools}\n</tools>`);
-      }
-      if (layers.rules !== undefined) {
-        sections.push(`<rules>\n${layers.rules}\n</rules>`);
-      }
-      if (layers.docs !== undefined) {
-        sections.push(`<docs>\n${layers.docs}\n</docs>`);
-      }
-      if (layers.contextFiles) {
-        const content = [
-          "Project-specific instructions and guidelines:",
-          ...layers.contextFiles.map(
-            (file) =>
-              `<project_instructions path="${file.path}">\n${file.content}\n</project_instructions>`,
-          ),
-        ].join("\n\n");
-        sections.push(`<project_context>\n${content}\n</project_context>`);
-      }
-      if (layers.skills) {
-        sections.push(
-          `<skills>\n${formatSkillsForPrompt(layers.skills).trim()}\n</skills>`,
-        );
-      }
-      if (layers.cwd !== undefined) {
-        sections.push(`<cwd>\n${layers.cwd}\n</cwd>`);
-      }
-      const prompt = [layers.identity ?? IDENTITY, ...sections].join("\n\n");
-      return layers.extensionTail !== undefined
-        ? `${prompt}\n\n${layers.extensionTail}`
-        : prompt;
-    }
-
-    // Issue #918 on pi ≥0.86: the section renderer wraps the catalogue in a
-    // `<skills>` section and renders the cwd as a `<cwd>` section instead of a
-    // footer line, and its project-context block drops the blank line below
-    // the opening tag. All three deltas left the relocated-child cut dead —
-    // the guard found neither the close tag above the tail nor the lead-in two
-    // lines under the opening — so a relocated child inherited the parent's
-    // absolute-path context block alongside its own.
-    describe("pi ≥0.86 section shape", () => {
-      /** What the parent's own directory contributed to its prompt. */
-      const PARENT_CONTEXT: ContextFile[] = [
-        { path: `${PARENT_CWD}/AGENTS.md`, content: "Repo rules." },
-      ];
 
       it("cuts the inherited skills section at its wrapper for a same-cwd child", () => {
         const prompt = buildAgentPrompt(replaceConfig(), PARENT_CWD, env, {
@@ -552,6 +483,41 @@ describe("buildAgentPrompt", () => {
         expect(prompt).not.toContain(`\`${PARENT_CWD}\``);
       });
 
+      it("keeps the identity ahead of the skills section byte for byte", () => {
+        const parent = parentPrompt({
+          skills: [skill("colgrep")],
+          cwd: PARENT_CWD,
+        });
+        const prompt = buildAgentPrompt(replaceConfig(), PARENT_CWD, env, {
+          systemPrompt: parent,
+          cwd: PARENT_CWD,
+        });
+
+        expect(prompt.startsWith(`${IDENTITY}\n\n`)).toBe(true);
+      });
+    });
+
+    describe("cwd-section anchor", () => {
+      it("cuts the inherited cwd section in append mode", () => {
+        const prompt = buildAgentPrompt(appendConfig(), "/workspace", env, {
+          systemPrompt: parentPrompt({ cwd: PARENT_CWD }),
+          cwd: PARENT_CWD,
+        });
+
+        expect(prompt).not.toContain("<cwd>");
+      });
+
+      it("normalizes backslashes the way Pi's prompt builder does", () => {
+        // buildSystemPrompt writes `cwd.replace(/\\/g, "/")`, so a Windows parent
+        // cwd reaches the prompt with forward slashes.
+        const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
+          systemPrompt: parentPrompt({ cwd: "C:/repo" }),
+          cwd: "C:\\repo",
+        });
+
+        expect(prompt).not.toContain("<cwd>");
+      });
+
       it("cuts the inherited cwd section when the parent resolved no skills", () => {
         const prompt = buildAgentPrompt(replaceConfig(), PARENT_CWD, env, {
           systemPrompt: parentPrompt({ cwd: PARENT_CWD }),
@@ -560,6 +526,51 @@ describe("buildAgentPrompt", () => {
 
         expect(prompt).not.toContain("<cwd>");
         expect(prompt).toContain(IDENTITY);
+      });
+
+      it("leaves a cwd section naming a different directory alone", () => {
+        const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
+          systemPrompt: parentPrompt({ cwd: "/parent-worktrees/one" }),
+          cwd: PARENT_CWD,
+        });
+
+        // A whole-line content match, not a substring one: /parent must not
+        // truncate /parent-worktrees/one, and no other layer anchors the cut.
+        expect(prompt).toContain("<cwd>\n/parent-worktrees/one\n</cwd>");
+      });
+    });
+
+    // Issue #918: `<project_context>` names each context file by absolute path,
+    // so a child a WorkspaceProvider relocated inherits a machine-structured
+    // claim about a directory that is not its own — the #640 defect in the one
+    // per-session layer that sits inside the shared prefix.
+    describe("project-context anchor", () => {
+      it("cuts the inherited block for a relocated child in append mode", () => {
+        const prompt = buildAgentPrompt(appendConfig(), "/workspace", env, {
+          systemPrompt: parentPrompt({
+            contextFiles: PARENT_CONTEXT,
+            skills: [skill("colgrep")],
+            cwd: PARENT_CWD,
+          }),
+          cwd: PARENT_CWD,
+        });
+
+        expect(prompt).not.toContain("<project_context>");
+        expect(prompt).not.toContain(`path="${PARENT_CWD}/AGENTS.md"`);
+      });
+
+      it("keeps the inherited block when the child shares the parent's cwd", () => {
+        const prompt = buildAgentPrompt(replaceConfig(), PARENT_CWD, env, {
+          systemPrompt: parentPrompt({
+            contextFiles: PARENT_CONTEXT,
+            skills: [skill("colgrep")],
+            cwd: PARENT_CWD,
+          }),
+          cwd: PARENT_CWD,
+        });
+
+        expect(prompt).toContain(`path="${PARENT_CWD}/AGENTS.md"`);
+        expect(prompt).toContain("Project-specific instructions and guidelines:");
       });
 
       it("cuts the inherited block for a relocated child at the project-context section", () => {
@@ -589,17 +600,6 @@ describe("buildAgentPrompt", () => {
         expect(prompt).not.toContain("<project_context>");
       });
 
-      it("leaves a cwd section naming a different directory alone", () => {
-        const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({ cwd: "/parent-worktrees/one" }),
-          cwd: PARENT_CWD,
-        });
-
-        // A whole-line content match, not a substring one: /parent must not
-        // truncate /parent-worktrees/one, and no other layer anchors the cut.
-        expect(prompt).toContain("<cwd>\n/parent-worktrees/one\n</cwd>");
-      });
-
       it("anchors on Pi's own section, not one a context file quotes", () => {
         const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
           systemPrompt: parentPrompt({
@@ -620,117 +620,105 @@ describe("buildAgentPrompt", () => {
         expect(prompt).not.toContain("Project-specific instructions and guidelines:");
         expect(prompt).not.toContain(`path="${PARENT_CWD}/AGENTS.md"`);
       });
+    });
 
-      it("keeps the identity ahead of the skills section byte for byte", () => {
+    // Pi renders `<tools>` and `<rules>` from the session's own tool set, so
+    // a child's copy of its parent's describes tools the child may not hold;
+    // a child of a parent that narrows them in place would show two lists
+    // that disagree.
+    describe("Pi's tool surface", () => {
+      /** Pi's tool section content: bullets plus its closing sentence. */
+      const TOOLS = [
+        "- read: Read file contents",
+        "- bash: Execute bash commands",
+        "",
+        "In addition to the tools above, you may have access to other custom tools depending on the project.",
+      ].join("\n");
+      const RULES = [
+        "- Use bash for file operations like ls, rg, find",
+        "- Be concise in your responses",
+        "- Show file paths clearly when working with files",
+      ].join("\n");
+      const DOCS = "Pi documentation (read only when the user asks about pi itself):";
+
+      it("drops the parent's <tools> and <rules>, keeping what follows byte for byte", () => {
+        const prompt = buildAgentPrompt(replaceConfig(), PARENT_CWD, env, {
+          systemPrompt: parentPrompt({
+            tools: TOOLS,
+            rules: RULES,
+            docs: DOCS,
+            skills: [skill("colgrep")],
+            cwd: PARENT_CWD,
+          }),
+          cwd: PARENT_CWD,
+        });
+
+        const expectedHead = `${IDENTITY}\n\n<docs>\n${DOCS}\n</docs>\n\n<active_agent`;
+        expect(prompt.slice(0, expectedHead.length)).toBe(expectedHead);
+      });
+
+      it("matches the identity a parent without them produces", () => {
+        const layers = {
+          docs: DOCS,
+          contextFiles: PARENT_CONTEXT,
+          skills: [skill("colgrep")],
+          cwd: PARENT_CWD,
+        };
+        const fromPiAuthored = buildAgentPrompt(appendConfig(), PARENT_CWD, env, {
+          systemPrompt: parentPrompt({ ...layers, tools: TOOLS, rules: RULES }),
+          cwd: PARENT_CWD,
+        });
+        const fromRelocated = buildAgentPrompt(appendConfig(), PARENT_CWD, env, {
+          systemPrompt: parentPrompt(layers),
+          cwd: PARENT_CWD,
+        });
+
+        expect(fromPiAuthored).toBe(fromRelocated);
+      });
+
+      it("drops them for a relocated child too", () => {
+        const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
+          systemPrompt: parentPrompt({
+            tools: TOOLS,
+            rules: RULES,
+            docs: DOCS,
+            contextFiles: PARENT_CONTEXT,
+            cwd: PARENT_CWD,
+          }),
+          cwd: PARENT_CWD,
+        });
+
+        const expectedHead = `${IDENTITY}\n\n<docs>\n${DOCS}\n</docs>\n\n<active_agent`;
+        expect(prompt.slice(0, expectedHead.length)).toBe(expectedHead);
+      });
+
+      it("keeps a quoted pair inside project context", () => {
+        const quoted = "<tools>\n- x\n</tools>\n\n<rules>\n- y\n</rules>";
         const parent = parentPrompt({
+          contextFiles: [{ path: `${PARENT_CWD}/AGENTS.md`, content: quoted }],
           skills: [skill("colgrep")],
           cwd: PARENT_CWD,
         });
-        const prompt = buildAgentPrompt(replaceConfig(), PARENT_CWD, env, {
+        const prompt = buildAgentPrompt(appendConfig(), PARENT_CWD, env, {
           systemPrompt: parent,
           cwd: PARENT_CWD,
         });
 
-        expect(prompt.startsWith(`${IDENTITY}\n\n`)).toBe(true);
+        const identity = parent.slice(0, parent.indexOf("\n\n<skills>"));
+        expect(prompt.startsWith(`${identity}\n\n<active_agent`)).toBe(true);
       });
 
-      // Pi renders `<tools>` and `<rules>` from the session's own tool set, so
-      // a child's copy of its parent's describes tools the child may not hold;
-      // a child of a parent that narrows them in place would show two lists
-      // that disagree.
-      describe("Pi's tool surface", () => {
-        /** Pi's tool section content: bullets plus its closing sentence. */
-        const TOOLS = [
-          "- read: Read file contents",
-          "- bash: Execute bash commands",
-          "",
-          "In addition to the tools above, you may have access to other custom tools depending on the project.",
-        ].join("\n");
-        const RULES = [
-          "- Use bash for file operations like ls, rg, find",
-          "- Be concise in your responses",
-          "- Show file paths clearly when working with files",
-        ].join("\n");
-        const DOCS = "Pi documentation (read only when the user asks about pi itself):";
-
-        it("drops the parent's <tools> and <rules>, keeping what follows byte for byte", () => {
-          const prompt = buildAgentPrompt(replaceConfig(), PARENT_CWD, env, {
-            systemPrompt: parentPrompt({
-              tools: TOOLS,
-              rules: RULES,
-              docs: DOCS,
-              skills: [skill("colgrep")],
-              cwd: PARENT_CWD,
-            }),
-            cwd: PARENT_CWD,
-          });
-
-          const expectedHead = `${IDENTITY}\n\n<docs>\n${DOCS}\n</docs>\n\n<active_agent`;
-          expect(prompt.slice(0, expectedHead.length)).toBe(expectedHead);
+      it("keeps a <tools> block that Pi's <rules> does not follow", () => {
+        const identity = `${IDENTITY}\n\n<tools>\n- x\n</tools>\n\nOperator prose.`;
+        const prompt = buildAgentPrompt(appendConfig(), PARENT_CWD, env, {
+          systemPrompt: parentPrompt({ identity, cwd: PARENT_CWD }),
+          cwd: PARENT_CWD,
         });
 
-        it("matches the identity a parent without them produces", () => {
-          const layers = {
-            docs: DOCS,
-            contextFiles: PARENT_CONTEXT,
-            skills: [skill("colgrep")],
-            cwd: PARENT_CWD,
-          };
-          const fromPiAuthored = buildAgentPrompt(appendConfig(), PARENT_CWD, env, {
-            systemPrompt: parentPrompt({ ...layers, tools: TOOLS, rules: RULES }),
-            cwd: PARENT_CWD,
-          });
-          const fromRelocated = buildAgentPrompt(appendConfig(), PARENT_CWD, env, {
-            systemPrompt: parentPrompt(layers),
-            cwd: PARENT_CWD,
-          });
-
-          expect(fromPiAuthored).toBe(fromRelocated);
-        });
-
-        it("drops them for a relocated child too", () => {
-          const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-            systemPrompt: parentPrompt({
-              tools: TOOLS,
-              rules: RULES,
-              docs: DOCS,
-              contextFiles: PARENT_CONTEXT,
-              cwd: PARENT_CWD,
-            }),
-            cwd: PARENT_CWD,
-          });
-
-          const expectedHead = `${IDENTITY}\n\n<docs>\n${DOCS}\n</docs>\n\n<active_agent`;
-          expect(prompt.slice(0, expectedHead.length)).toBe(expectedHead);
-        });
-
-        it("keeps a quoted pair inside project context", () => {
-          const quoted = "<tools>\n- x\n</tools>\n\n<rules>\n- y\n</rules>";
-          const parent = parentPrompt({
-            contextFiles: [{ path: `${PARENT_CWD}/AGENTS.md`, content: quoted }],
-            skills: [skill("colgrep")],
-            cwd: PARENT_CWD,
-          });
-          const prompt = buildAgentPrompt(appendConfig(), PARENT_CWD, env, {
-            systemPrompt: parent,
-            cwd: PARENT_CWD,
-          });
-
-          const identity = parent.slice(0, parent.indexOf("\n\n<skills>"));
-          expect(prompt.startsWith(`${identity}\n\n<active_agent`)).toBe(true);
-        });
-
-        it("keeps a <tools> block that Pi's <rules> does not follow", () => {
-          const identity = `${IDENTITY}\n\n<tools>\n- x\n</tools>\n\nOperator prose.`;
-          const prompt = buildAgentPrompt(appendConfig(), PARENT_CWD, env, {
-            systemPrompt: parentPrompt({ identity, cwd: PARENT_CWD }),
-            cwd: PARENT_CWD,
-          });
-
-          expect(prompt.startsWith(`${identity}\n\n<active_agent`)).toBe(true);
-        });
+        expect(prompt.startsWith(`${identity}\n\n<active_agent`)).toBe(true);
       });
     });
+
 
     // A parent prompt can lack a `<cwd>` section naming the parent's directory
     // when a `before_agent_start` handler returns its own `systemPrompt`, which
@@ -911,11 +899,6 @@ describe("buildAgentPrompt", () => {
           renderProjectContext([{ path: `${cwd}/AGENTS.md`, content }]),
         );
       }
-
-      /** The parent's own block, which a relocated child must not keep. */
-      const PARENT_CONTEXT: ContextFile[] = [
-        { path: `${PARENT_CWD}/AGENTS.md`, content: "Repo rules." },
-      ];
 
       function relocatedChild(load: (cwd: string) => string | undefined) {
         return buildAgentPrompt(
