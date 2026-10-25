@@ -306,11 +306,11 @@ describe("buildAgentPrompt", () => {
      * upstream rewording of it fails these tests rather than silently changing
      * which layer the inherited prompt is cut at. The project-context layer is
      * hand-built from the ≤0.85 dist's `buildSystemPrompt` — blank lines inside
-     * both tags — as `sectionParentPrompt` hand-builds 0.86.1's, so the block
+     * both tags — as `parentPrompt` hand-builds 0.86.1's, so the block
      * this package renders for a child cannot change the parent shape these
      * tests feed the anchors.
      */
-    function parentPrompt(
+    function footerParentPrompt(
       layers: {
         identity?: string;
         contextFiles?: ContextFile[];
@@ -353,7 +353,7 @@ describe("buildAgentPrompt", () => {
     describe("skills-catalogue anchor", () => {
       it("cuts the inherited catalogue in append mode", () => {
         const prompt = buildAgentPrompt(appendConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({
+          systemPrompt: footerParentPrompt({
             skills: [skill("colgrep")],
             footerCwd: PARENT_CWD,
           }),
@@ -365,7 +365,7 @@ describe("buildAgentPrompt", () => {
 
       it("cuts the inherited catalogue in replace mode", () => {
         const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({
+          systemPrompt: footerParentPrompt({
             skills: [skill("colgrep")],
             footerCwd: PARENT_CWD,
           }),
@@ -377,7 +377,7 @@ describe("buildAgentPrompt", () => {
 
       it("cuts the catalogue when the parent resolved no footer", () => {
         const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({ skills: [skill("colgrep")] }),
+          systemPrompt: footerParentPrompt({ skills: [skill("colgrep")] }),
           cwd: PARENT_CWD,
         });
 
@@ -389,7 +389,7 @@ describe("buildAgentPrompt", () => {
         // would have left this line alone under #640's exception — only the
         // catalogue cut ahead of it removes the line.
         const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({
+          systemPrompt: footerParentPrompt({
             skills: [skill("colgrep")],
             footerCwd: "/workspace",
           }),
@@ -405,7 +405,7 @@ describe("buildAgentPrompt", () => {
         const extensionTail =
           "# Working Directory\n\nShell commands already execute in `/parent`.";
         const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({
+          systemPrompt: footerParentPrompt({
             skills: [skill("colgrep")],
             footerCwd: PARENT_CWD,
             extensionTail,
@@ -418,7 +418,7 @@ describe("buildAgentPrompt", () => {
 
       it("keeps the identity ahead of the catalogue byte for byte", () => {
         const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({
+          systemPrompt: footerParentPrompt({
             skills: [skill("colgrep"), skill("testing")],
             footerCwd: PARENT_CWD,
           }),
@@ -437,7 +437,7 @@ describe("buildAgentPrompt", () => {
         // catalogue Pi appends, so the cut must be the later of the two.
         const quoted = `${IDENTITY}\n${SKILLS_SECTION_HEADING}`;
         const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({
+          systemPrompt: footerParentPrompt({
             identity: quoted,
             skills: [skill("colgrep")],
             footerCwd: PARENT_CWD,
@@ -453,7 +453,7 @@ describe("buildAgentPrompt", () => {
         // A quote after the catalogue would win a bare last-occurrence search,
         // leaving the real catalogue inherited.
         const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({
+          systemPrompt: footerParentPrompt({
             skills: [skill("colgrep")],
             footerCwd: PARENT_CWD,
             extensionTail: SKILLS_SECTION_HEADING,
@@ -468,7 +468,7 @@ describe("buildAgentPrompt", () => {
         // Pi writes the footer directly after its own catalogue, so the second
         // well-formed section here is not the one to anchor on.
         const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({
+          systemPrompt: footerParentPrompt({
             skills: [skill("colgrep")],
             footerCwd: PARENT_CWD,
             extensionTail: formatSkillsForPrompt([skill("appended")]).trim(),
@@ -490,7 +490,7 @@ describe("buildAgentPrompt", () => {
           "</project_context>",
         ].join("\n");
         const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({ identity: quoted, footerCwd: PARENT_CWD }),
+          systemPrompt: footerParentPrompt({ identity: quoted, footerCwd: PARENT_CWD }),
           cwd: PARENT_CWD,
         });
 
@@ -502,7 +502,7 @@ describe("buildAgentPrompt", () => {
     describe("cwd-footer anchor", () => {
       it("strips the inherited footer in append mode", () => {
         const prompt = buildAgentPrompt(appendConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({ footerCwd: PARENT_CWD }),
+          systemPrompt: footerParentPrompt({ footerCwd: PARENT_CWD }),
           cwd: PARENT_CWD,
         });
 
@@ -511,7 +511,7 @@ describe("buildAgentPrompt", () => {
 
       it("strips the inherited footer in replace mode", () => {
         const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({ footerCwd: PARENT_CWD }),
+          systemPrompt: footerParentPrompt({ footerCwd: PARENT_CWD }),
           cwd: PARENT_CWD,
         });
 
@@ -520,7 +520,7 @@ describe("buildAgentPrompt", () => {
 
       it("leaves the identity ahead of the footer intact", () => {
         const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({ footerCwd: PARENT_CWD }),
+          systemPrompt: footerParentPrompt({ footerCwd: PARENT_CWD }),
           cwd: PARENT_CWD,
         });
 
@@ -543,7 +543,7 @@ describe("buildAgentPrompt", () => {
         // buildSystemPrompt writes `cwd.replace(/\\/g, "/")`, so a Windows parent
         // cwd reaches the prompt with forward slashes.
         const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({ footerCwd: "C:/repo" }),
+          systemPrompt: footerParentPrompt({ footerCwd: "C:/repo" }),
           cwd: "C:\\repo",
         });
 
@@ -555,7 +555,7 @@ describe("buildAgentPrompt", () => {
         // prefix. The catalogue cut sits ahead of the footer, so the footer is
         // already past the divergence point and the exception buys nothing.
         const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({ footerCwd: "/workspace" }),
+          systemPrompt: footerParentPrompt({ footerCwd: "/workspace" }),
           cwd: "/workspace",
         });
 
@@ -564,7 +564,7 @@ describe("buildAgentPrompt", () => {
 
       it("strips an agreeing footer whose separators differ from the child's", () => {
         const prompt = buildAgentPrompt(replaceConfig(), "C:/repo", env, {
-          systemPrompt: parentPrompt({ footerCwd: "C:/repo" }),
+          systemPrompt: footerParentPrompt({ footerCwd: "C:/repo" }),
           cwd: "C:\\repo",
         });
 
@@ -584,7 +584,7 @@ describe("buildAgentPrompt", () => {
 
       it("cuts the inherited block for a relocated child in append mode", () => {
         const prompt = buildAgentPrompt(appendConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({
+          systemPrompt: footerParentPrompt({
             contextFiles: PARENT_CONTEXT,
             skills: [skill("colgrep")],
             footerCwd: PARENT_CWD,
@@ -598,7 +598,7 @@ describe("buildAgentPrompt", () => {
 
       it("cuts the inherited block for a relocated child in replace mode", () => {
         const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({
+          systemPrompt: footerParentPrompt({
             contextFiles: PARENT_CONTEXT,
             skills: [skill("colgrep")],
             footerCwd: PARENT_CWD,
@@ -614,7 +614,7 @@ describe("buildAgentPrompt", () => {
         // Only the footer anchors the tail here, and the block sits two lines
         // above it rather than three.
         const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({
+          systemPrompt: footerParentPrompt({
             contextFiles: PARENT_CONTEXT,
             footerCwd: PARENT_CWD,
           }),
@@ -626,7 +626,7 @@ describe("buildAgentPrompt", () => {
 
       it("keeps the inherited block when the child shares the parent's cwd", () => {
         const prompt = buildAgentPrompt(replaceConfig(), PARENT_CWD, env, {
-          systemPrompt: parentPrompt({
+          systemPrompt: footerParentPrompt({
             contextFiles: PARENT_CONTEXT,
             skills: [skill("colgrep")],
             footerCwd: PARENT_CWD,
@@ -643,7 +643,7 @@ describe("buildAgentPrompt", () => {
         // than the real one, so a cut that takes the last match would leave
         // Pi's lead-in and the parent's path behind.
         const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({
+          systemPrompt: footerParentPrompt({
             contextFiles: [
               {
                 path: `${PARENT_CWD}/AGENTS.md`,
@@ -671,7 +671,7 @@ describe("buildAgentPrompt", () => {
      * formatter: its heading is unchanged in 0.86, and the renderer trims it
      * into the section.
      */
-    function sectionParentPrompt(
+    function parentPrompt(
       layers: {
         identity?: string;
         tools?: string;
@@ -732,7 +732,7 @@ describe("buildAgentPrompt", () => {
 
       it("cuts the inherited skills section at its wrapper for a same-cwd child", () => {
         const prompt = buildAgentPrompt(replaceConfig(), PARENT_CWD, env, {
-          systemPrompt: sectionParentPrompt({
+          systemPrompt: parentPrompt({
             skills: [skill("colgrep")],
             cwd: PARENT_CWD,
           }),
@@ -751,7 +751,7 @@ describe("buildAgentPrompt", () => {
         // `<cwd>`; pi-nocd's names the parent's directory, and the child's own
         // extensions write theirs for the child.
         const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-          systemPrompt: sectionParentPrompt({
+          systemPrompt: parentPrompt({
             skills: [skill("colgrep")],
             cwd: PARENT_CWD,
             extensionTail: `<working_directory>\nShell commands already execute in \`${PARENT_CWD}\`.\n</working_directory>`,
@@ -765,7 +765,7 @@ describe("buildAgentPrompt", () => {
 
       it("cuts the inherited cwd section when the parent resolved no skills", () => {
         const prompt = buildAgentPrompt(replaceConfig(), PARENT_CWD, env, {
-          systemPrompt: sectionParentPrompt({ cwd: PARENT_CWD }),
+          systemPrompt: parentPrompt({ cwd: PARENT_CWD }),
           cwd: PARENT_CWD,
         });
 
@@ -775,7 +775,7 @@ describe("buildAgentPrompt", () => {
 
       it("cuts the inherited block for a relocated child at the project-context section", () => {
         const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-          systemPrompt: sectionParentPrompt({
+          systemPrompt: parentPrompt({
             contextFiles: PARENT_CONTEXT,
             skills: [skill("colgrep")],
             cwd: PARENT_CWD,
@@ -790,7 +790,7 @@ describe("buildAgentPrompt", () => {
 
       it("cuts the inherited block for a relocated child when the parent resolved no skills", () => {
         const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-          systemPrompt: sectionParentPrompt({
+          systemPrompt: parentPrompt({
             contextFiles: PARENT_CONTEXT,
             cwd: PARENT_CWD,
           }),
@@ -802,7 +802,7 @@ describe("buildAgentPrompt", () => {
 
       it("leaves a cwd section naming a different directory alone", () => {
         const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-          systemPrompt: sectionParentPrompt({ cwd: "/parent-worktrees/one" }),
+          systemPrompt: parentPrompt({ cwd: "/parent-worktrees/one" }),
           cwd: PARENT_CWD,
         });
 
@@ -813,7 +813,7 @@ describe("buildAgentPrompt", () => {
 
       it("anchors on Pi's own section, not one a context file quotes", () => {
         const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-          systemPrompt: sectionParentPrompt({
+          systemPrompt: parentPrompt({
             contextFiles: [
               {
                 path: `${PARENT_CWD}/AGENTS.md`,
@@ -833,7 +833,7 @@ describe("buildAgentPrompt", () => {
       });
 
       it("keeps the identity ahead of the skills section byte for byte", () => {
-        const parent = sectionParentPrompt({
+        const parent = parentPrompt({
           skills: [skill("colgrep")],
           cwd: PARENT_CWD,
         });
@@ -866,7 +866,7 @@ describe("buildAgentPrompt", () => {
 
         it("drops the parent's <tools> and <rules>, keeping what follows byte for byte", () => {
           const prompt = buildAgentPrompt(replaceConfig(), PARENT_CWD, env, {
-            systemPrompt: sectionParentPrompt({
+            systemPrompt: parentPrompt({
               tools: TOOLS,
               rules: RULES,
               docs: DOCS,
@@ -888,11 +888,11 @@ describe("buildAgentPrompt", () => {
             cwd: PARENT_CWD,
           };
           const fromPiAuthored = buildAgentPrompt(appendConfig(), PARENT_CWD, env, {
-            systemPrompt: sectionParentPrompt({ ...layers, tools: TOOLS, rules: RULES }),
+            systemPrompt: parentPrompt({ ...layers, tools: TOOLS, rules: RULES }),
             cwd: PARENT_CWD,
           });
           const fromRelocated = buildAgentPrompt(appendConfig(), PARENT_CWD, env, {
-            systemPrompt: sectionParentPrompt(layers),
+            systemPrompt: parentPrompt(layers),
             cwd: PARENT_CWD,
           });
 
@@ -901,7 +901,7 @@ describe("buildAgentPrompt", () => {
 
         it("drops them for a relocated child too", () => {
           const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-            systemPrompt: sectionParentPrompt({
+            systemPrompt: parentPrompt({
               tools: TOOLS,
               rules: RULES,
               docs: DOCS,
@@ -917,7 +917,7 @@ describe("buildAgentPrompt", () => {
 
         it("keeps a quoted pair inside project context", () => {
           const quoted = "<tools>\n- x\n</tools>\n\n<rules>\n- y\n</rules>";
-          const parent = sectionParentPrompt({
+          const parent = parentPrompt({
             contextFiles: [{ path: `${PARENT_CWD}/AGENTS.md`, content: quoted }],
             skills: [skill("colgrep")],
             cwd: PARENT_CWD,
@@ -934,7 +934,7 @@ describe("buildAgentPrompt", () => {
         it("keeps a <tools> block that Pi's <rules> does not follow", () => {
           const identity = `${IDENTITY}\n\n<tools>\n- x\n</tools>\n\nOperator prose.`;
           const prompt = buildAgentPrompt(appendConfig(), PARENT_CWD, env, {
-            systemPrompt: sectionParentPrompt({ identity, cwd: PARENT_CWD }),
+            systemPrompt: parentPrompt({ identity, cwd: PARENT_CWD }),
             cwd: PARENT_CWD,
           });
 
@@ -944,7 +944,7 @@ describe("buildAgentPrompt", () => {
         it("leaves the footer shape alone", () => {
           const identity = `${IDENTITY}\n\n<tools>\n${TOOLS}\n</tools>\n\n<rules>\n${RULES}\n</rules>`;
           const prompt = buildAgentPrompt(appendConfig(), PARENT_CWD, env, {
-            systemPrompt: parentPrompt({
+            systemPrompt: footerParentPrompt({
               identity,
               skills: [skill("colgrep")],
               footerCwd: PARENT_CWD,
@@ -959,7 +959,7 @@ describe("buildAgentPrompt", () => {
 
     describe("no anchor present", () => {
       it("leaves a parent prompt with no session-resolved layer unchanged", () => {
-        const parent = parentPrompt();
+        const parent = footerParentPrompt();
         const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
           systemPrompt: parent,
           cwd: PARENT_CWD,
@@ -972,7 +972,7 @@ describe("buildAgentPrompt", () => {
     describe("the assembled child prompt", () => {
       it("makes no Current working directory claim when the directories differ", () => {
         const prompt = buildAgentPrompt(appendConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({ footerCwd: PARENT_CWD }),
+          systemPrompt: footerParentPrompt({ footerCwd: PARENT_CWD }),
           cwd: PARENT_CWD,
         });
 
@@ -986,7 +986,7 @@ describe("buildAgentPrompt", () => {
 
       it("makes no Current working directory claim when the directories agree", () => {
         const prompt = buildAgentPrompt(appendConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({
+          systemPrompt: footerParentPrompt({
             skills: [skill("colgrep")],
             footerCwd: "/workspace",
           }),
@@ -1001,7 +1001,7 @@ describe("buildAgentPrompt", () => {
 
       it("contributes no skills catalogue for Pi's child-resolved one to duplicate", () => {
         const prompt = buildAgentPrompt(appendConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({
+          systemPrompt: footerParentPrompt({
             skills: [skill("colgrep"), skill("testing")],
             footerCwd: PARENT_CWD,
             extensionTail: "# Working Directory",
@@ -1036,7 +1036,7 @@ describe("buildAgentPrompt", () => {
 
       it("opens an append-mode child with the parent's identity verbatim", () => {
         const prompt = buildAgentPrompt(appendConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({
+          systemPrompt: footerParentPrompt({
             identity: IDENTITY_WITH_TOOLS,
             skills: [skill("colgrep")],
             footerCwd: PARENT_CWD,
@@ -1049,7 +1049,7 @@ describe("buildAgentPrompt", () => {
 
       it("opens a replace-mode child with the parent's identity verbatim", () => {
         const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({
+          systemPrompt: footerParentPrompt({
             identity: IDENTITY_WITH_TOOLS,
             skills: [skill("colgrep")],
             footerCwd: PARENT_CWD,
@@ -1063,12 +1063,12 @@ describe("buildAgentPrompt", () => {
       it("keeps the parent's project context inside the shared prefix", () => {
         // The block is the bulk of a real identity, so a child at the parent's
         // directory must carry it byte for byte where the parent has it.
-        const identity = parentPrompt({
+        const identity = footerParentPrompt({
           identity: IDENTITY_WITH_TOOLS,
           contextFiles: [{ path: `${PARENT_CWD}/AGENTS.md`, content: "Repo rules." }],
         });
         const prompt = buildAgentPrompt(appendConfig(), PARENT_CWD, env, {
-          systemPrompt: parentPrompt({
+          systemPrompt: footerParentPrompt({
             identity: IDENTITY_WITH_TOOLS,
             contextFiles: [{ path: `${PARENT_CWD}/AGENTS.md`, content: "Repo rules." }],
             skills: [skill("colgrep")],
@@ -1100,7 +1100,7 @@ describe("buildAgentPrompt", () => {
           "/workspace",
           env,
           {
-            systemPrompt: parentPrompt({
+            systemPrompt: footerParentPrompt({
               contextFiles: PARENT_CONTEXT,
               footerCwd: PARENT_CWD,
             }),
@@ -1145,7 +1145,7 @@ describe("buildAgentPrompt", () => {
           PARENT_CWD,
           env,
           {
-            systemPrompt: parentPrompt({
+            systemPrompt: footerParentPrompt({
               contextFiles: PARENT_CONTEXT,
               footerCwd: PARENT_CWD,
             }),
