@@ -375,7 +375,7 @@ src/
 ├── session/                        session assembly and preparation
 │   ├── session-config.ts           pure assembler (main entry)
 │   ├── prompts.ts                  system prompt building; inherits the parent prompt's identity, cutting the session-resolved tail (ADR 0006) and dropping Pi's `<tools>`/`<rules>` sections on the section-shaped prompt (ADR 0011) — and the project-context block too for a child running in its own directory (ADR 0010) — or its portable parts alone for a re-homing provider (ADR 0009)
-│   ├── project-context.ts          Pi's `<project_context>` block, rendered in pi ≥0.86's shape; the loader a child whose adopted identity describes another directory resolves its own with (ADR 0010)
+│   ├── project-context.ts          Pi's `<project_context>` block, rendered in Pi's section shape; the loader a child whose adopted identity describes another directory resolves its own with (ADR 0010)
 │   ├── ask-parent-tool.ts          child-facing ask_parent: records the child's question, tells it to end its turn
 │   ├── builtin-extensions.ts       selects the Pi built-ins (codemode, tool-search, MCP) a child's allowlist calls for
 │   ├── mcp-tool-patterns.ts        expands `mcp__…*` allowlist entries against the parent's registered tool names
@@ -1222,7 +1222,7 @@ Decision 0005's rule 2 now names lifecycle status, and its dispositions table ad
 
 Release: independent
 
-#### [#1017] Drop the pre-0.86 prompt-renderer arms
+#### ✅ [#1017] Drop the pre-0.86 prompt-renderer arms
 
 **Cause:** dead compatibility code.
 `session/prompts.ts` accepts both of Pi's prompt renderers because the peer range used to admit both, and [#1006] raised the floor to `>=1.0.0`, which renders only the section shape.
@@ -1234,6 +1234,11 @@ Release: independent
 - **Outcome:** the pre-0.86 mentions row reads 0; if the plan finds an arm that still serves a `>=1.0.0` prompt, it updates the row with its reason.
 - **Commit type:** `refactor:`, with a `docs:` commit for `docs/configuration.md`; `test:` for the ride-along.
 - **Impact 2 / Risk 1 / Priority 10.**
+
+Landed: `session/prompts.ts` anchors the inherited-identity cut on Pi's `<cwd>` section alone; the footer arm, its `"footer"` shape, and the two-lines-below project-context lead-in are gone with their fixtures, so the pre-0.86 mentions row reads 0.
+One arm still serves a `>=1.0.0` prompt: a parent prompt with no `<cwd>` section, which a `before_agent_start` handler's returned `systemPrompt` produces.
+Planning found it cut inside Pi's `<skills>` wrapper, and the step's release vehicle became a `fix:` that cuts at the wrapper, so such a child carries no stray `<skills>` line and a relocated one drops the parent's `<project_context>`.
+The ride-along landed too: `test/helpers/make-agent-config.ts` replaces the four local factories (the factory row reads 0) and the `prompts.test.ts` literals, and the duplicated append-mode fallback test is gone.
 
 Release: independent
 
@@ -1255,7 +1260,7 @@ flowchart TD
     S1079 -.soft.-> S1080["✅ #1080<br/>Queued report duration"]
     S1080 -.soft.-> S1085["✅ #1085<br/>Queued navigator label"]
     S1085 -.soft.-> S1086["✅ #1086<br/>Persisted queued label"]
-    S1017["#1017<br/>Drop pre-0.86 arms"]
+    S1017["✅ #1017<br/>Drop pre-0.86 arms"]
 ```
 
 The section order under `### Steps` is the recommended working sequence; the diagram is laid out by dependency instead.
@@ -1274,7 +1279,7 @@ Every Track A step rewrites `lifecycle/subagent.ts`, so those steps sequence rat
 ### Release batches
 
 - Independently releasable: [#947], [#1048], [#1049], [#1050], [#1012], [#1051], [#1013], [#1079], [#1080], [#1085], [#1086], [#912], [#1017].
-- Release vehicles: [#947] (`feat:` or `fix:`, decided at plan time), [#1049] (`fix:` for [#949]), [#1050] (`fix:` for the resume's workspace rule), [#1012] (`fix!:`), [#1051] (`fix:` for a stopped run's late result landing on its resume), [#1013] (`fix!:` for the `resume-queued` refusal), [#1079] (`fix:`), [#1080] (`fix:`), [#1085] (`fix:`), [#1086] (`fix:`), [#912] (`feat:`), and [#1017] (`docs:` for the configuration note).
+- Release vehicles: [#947] (`feat:` or `fix:`, decided at plan time), [#1049] (`fix:` for [#949]), [#1050] (`fix:` for the resume's workspace rule), [#1012] (`fix!:`), [#1051] (`fix:` for a stopped run's late result landing on its resume), [#1013] (`fix!:` for the `resume-queued` refusal), [#1079] (`fix:`), [#1080] (`fix:`), [#1085] (`fix:`), [#1086] (`fix:`), [#912] (`feat:`), and [#1017] (`fix:` for a forced parent prompt's skills section, with `docs:` for the configuration note).
   [#1048] is `refactor:` only and cuts no release on its own.
 - No batches: every step leaves the package releasable, and the refactoring steps preserve behavior.
 
