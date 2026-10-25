@@ -423,19 +423,23 @@ function projectContextStart(lines: readonly string[], tailAt: number): number {
 }
 
 /**
- * Line index of the catalogue's heading in a prompt no `<cwd>` section
- * anchors, or -1 when it carries no catalogue.
+ * Line index where the catalogue begins in a prompt no `<cwd>` section
+ * anchors — Pi's `<skills>` wrapper when the heading opens one, otherwise the
+ * heading — or -1 when it carries no catalogue.
  *
  * With no anchor to locate Pi's own catalogue by position, the last closing
  * tag is the best remaining guess. The heading is located by searching back
  * from it, so prose quoting Pi's heading ahead of the catalogue is not
- * mistaken for it.
+ * mistaken for it. Cutting at the wrapper leaves no stray `<skills>` line in
+ * the identity, and leaves the section above it adjacent to the cut for the
+ * project-context anchor.
  */
 function unanchoredCatalogueStart(lines: readonly string[]): number {
   const catalogueEnd = lines.lastIndexOf(SKILLS_CATALOGUE_CLOSE);
-  return catalogueEnd === -1
-    ? -1
-    : lines.lastIndexOf(SKILLS_SECTION_HEADING, catalogueEnd);
+  if (catalogueEnd === -1) return -1;
+  const headingAt = lines.lastIndexOf(SKILLS_SECTION_HEADING, catalogueEnd);
+  if (headingAt === -1) return -1;
+  return lines[headingAt - 1] === SKILLS_SECTION_OPEN ? headingAt - 1 : headingAt;
 }
 
 /** Render a path the way `buildSystemPrompt` writes it into a prompt. */

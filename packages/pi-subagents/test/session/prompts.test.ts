@@ -320,15 +320,6 @@ describe("buildAgentPrompt", () => {
         expect(prompt).not.toContain("<available_skills>");
       });
 
-      it("cuts the catalogue when the parent prompt carries no <cwd> section", () => {
-        const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
-          systemPrompt: parentPrompt({ skills: [skill("colgrep")] }),
-          cwd: PARENT_CWD,
-        });
-
-        expect(prompt).not.toContain("<available_skills>");
-      });
-
       it("cuts at Pi's catalogue, not at project context quoting its heading", () => {
         // An AGENTS.md may quote Pi's own prompt text; the quote precedes the
         // catalogue Pi appends, so the cut must be the later of the two.
@@ -765,7 +756,42 @@ describe("buildAgentPrompt", () => {
           cwd: PARENT_CWD,
         });
 
-        expect(prompt.startsWith(`${identity}\n\n`)).toBe(true);
+        expect(prompt.startsWith(`${identity}\n\n<active_agent`)).toBe(true);
+      });
+
+      it("cuts the catalogue at Pi's <skills> wrapper", () => {
+        const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
+          systemPrompt: parentPrompt({ skills: [skill("colgrep")] }),
+          cwd: PARENT_CWD,
+        });
+
+        expect(
+          prompt.startsWith(`${IDENTITY}\n\n<active_agent name="specialist"/>`),
+        ).toBe(true);
+      });
+
+      it("cuts the inherited block for a relocated child", () => {
+        const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
+          systemPrompt: parentPrompt({
+            contextFiles: [{ path: `${PARENT_CWD}/AGENTS.md`, content: "Repo rules." }],
+            skills: [skill("colgrep")],
+          }),
+          cwd: PARENT_CWD,
+        });
+
+        expect(prompt).not.toContain("<project_context>");
+        expect(prompt).not.toContain(`path="${PARENT_CWD}/AGENTS.md"`);
+      });
+
+      it("cuts a catalogue with no <skills> wrapper at its heading", () => {
+        const prompt = buildAgentPrompt(replaceConfig(), "/workspace", env, {
+          systemPrompt: `${IDENTITY}${formatSkillsForPrompt([skill("colgrep")])}`,
+          cwd: PARENT_CWD,
+        });
+
+        expect(
+          prompt.startsWith(`${IDENTITY}\n\n<active_agent name="specialist"/>`),
+        ).toBe(true);
       });
     });
 
