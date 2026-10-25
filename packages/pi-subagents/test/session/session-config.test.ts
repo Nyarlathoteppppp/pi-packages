@@ -94,8 +94,8 @@ describe("assembleSessionConfig — default agent shape", () => {
   });
 
   it("forwards the parent's cwd alongside its system prompt", () => {
-    // The prompt builder needs the parent's cwd to redact the footer that text
-    // claims — the child's own cwd is a separate argument.
+    // The prompt builder needs the parent's cwd to find the `<cwd>` section that
+    // text carries — the child's own cwd is a separate argument.
     assembleSessionConfig(
       "Explore",
       ctx,

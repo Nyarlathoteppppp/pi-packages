@@ -493,7 +493,11 @@ describe("buildAgentPrompt", () => {
           cwd: PARENT_CWD,
         });
 
-        expect(prompt.startsWith(`${IDENTITY}\n\n`)).toBe(true);
+        // The agent tag follows the inherited identity directly, so nothing of
+        // the skills section survives between them.
+        expect(
+          prompt.startsWith(`${IDENTITY}\n\n<active_agent name="specialist"/>`),
+        ).toBe(true);
       });
     });
 
@@ -718,7 +722,6 @@ describe("buildAgentPrompt", () => {
         expect(prompt.startsWith(`${identity}\n\n<active_agent`)).toBe(true);
       });
     });
-
 
     // A parent prompt can lack a `<cwd>` section naming the parent's directory
     // when a `before_agent_start` handler returns its own `systemPrompt`, which
