@@ -12,6 +12,7 @@ import {
 } from "#src/session/project-context";
 import { buildAgentPrompt } from "#src/session/prompts";
 import type { AgentConfig } from "#src/types";
+import { makeAgentConfig } from "#test/helpers/make-agent-config";
 
 const testRegistry = new AgentTypeRegistry(() => new Map());
 
@@ -98,15 +99,7 @@ describe("buildAgentPrompt", () => {
   });
 
   it("append mode with parent prompt includes parent + custom instructions", () => {
-    const config: AgentConfig = {
-      name: "appender",
-      description: "Appender",
-      toolNames: [],
-      systemPrompt: "Extra custom instructions here.",
-      promptMode: "append",
-      inheritContext: false,
-      runInBackground: false,
-    };
+    const config = makeAgentConfig({ name: "appender", systemPrompt: "Extra custom instructions here.", promptMode: "append" });
     const parentPrompt = "You are a parent coding agent with special powers.";
     const prompt = buildAgentPrompt(config, "/workspace", env, {
       systemPrompt: parentPrompt,
@@ -121,15 +114,7 @@ describe("buildAgentPrompt", () => {
   });
 
   it("append mode without parent prompt falls back to generic base", () => {
-    const config: AgentConfig = {
-      name: "appender",
-      description: "Appender",
-      toolNames: [],
-      systemPrompt: "Extra custom instructions here.",
-      promptMode: "append",
-      inheritContext: false,
-      runInBackground: false,
-    };
+    const config = makeAgentConfig({ name: "appender", systemPrompt: "Extra custom instructions here.", promptMode: "append" });
     const prompt = buildAgentPrompt(config, "/workspace", env);
     expect(prompt).toContain("/workspace");
     expect(prompt).toContain(GENERIC_BASE);
@@ -137,15 +122,7 @@ describe("buildAgentPrompt", () => {
   });
 
   it("append mode with empty systemPrompt is a pure parent clone", () => {
-    const config: AgentConfig = {
-      name: "clone",
-      description: "Clone",
-      toolNames: [],
-      systemPrompt: "",
-      promptMode: "append",
-      inheritContext: false,
-      runInBackground: false,
-    };
+    const config = makeAgentConfig({ name: "clone", systemPrompt: "", promptMode: "append" });
     const parentPrompt = "You are a parent coding agent.";
     const prompt = buildAgentPrompt(config, "/workspace", env, {
       systemPrompt: parentPrompt,
@@ -158,15 +135,7 @@ describe("buildAgentPrompt", () => {
   });
 
   it("replace mode includes config systemPrompt last and removes the thin standalone header", () => {
-    const config: AgentConfig = {
-      name: "custom",
-      description: "Custom",
-      toolNames: [],
-      systemPrompt: "You are a specialized agent.",
-      promptMode: "replace",
-      inheritContext: false,
-      runInBackground: false,
-    };
+    const config = makeAgentConfig({ name: "custom", systemPrompt: "You are a specialized agent.", promptMode: "replace" });
     const prompt = buildAgentPrompt(config, "/workspace", env);
     expect(prompt).toContain("You are a specialized agent.");
     expect(prompt).toContain("/workspace");
@@ -175,15 +144,7 @@ describe("buildAgentPrompt", () => {
   });
 
   it("replace mode includes parent prompt as base (no bridge/wrapper)", () => {
-    const config: AgentConfig = {
-      name: "standalone",
-      description: "Standalone",
-      toolNames: [],
-      systemPrompt: "You are a standalone agent.",
-      promptMode: "replace",
-      inheritContext: false,
-      runInBackground: false,
-    };
+    const config = makeAgentConfig({ name: "standalone", systemPrompt: "You are a standalone agent.", promptMode: "replace" });
     const prompt = buildAgentPrompt(
       config,
       "/workspace",
@@ -199,15 +160,7 @@ describe("buildAgentPrompt", () => {
   });
 
   it("replace mode falls back to genericBase when no parent supplied", () => {
-    const config: AgentConfig = {
-      name: "standalone",
-      description: "Standalone",
-      toolNames: [],
-      systemPrompt: "Custom standalone instructions.",
-      promptMode: "replace",
-      inheritContext: false,
-      runInBackground: false,
-    };
+    const config = makeAgentConfig({ name: "standalone", systemPrompt: "Custom standalone instructions.", promptMode: "replace" });
     const prompt = buildAgentPrompt(config, "/workspace", env);
     // Should use genericBase as the prefix (same fallback as append mode).
     expect(prompt).toContain(GENERIC_BASE);
@@ -216,15 +169,7 @@ describe("buildAgentPrompt", () => {
   });
 
   it("replace mode orders: identity → active_agent → env → config.systemPrompt", () => {
-    const config: AgentConfig = {
-      name: "ordered",
-      description: "Ordered",
-      toolNames: [],
-      systemPrompt: "Final custom instructions.",
-      promptMode: "replace",
-      inheritContext: false,
-      runInBackground: false,
-    };
+    const config = makeAgentConfig({ name: "ordered", systemPrompt: "Final custom instructions.", promptMode: "replace" });
     const prompt = buildAgentPrompt(
       config,
       "/workspace",
@@ -256,37 +201,12 @@ describe("buildAgentPrompt", () => {
     expect(prompt).not.toContain("Use the grep tool instead of");
   });
 
-  it("append mode without parent prompt falls back to the generic base", () => {
-    const config: AgentConfig = {
-      name: "no-parent",
-      description: "No parent",
-      toolNames: [],
-      systemPrompt: "Extra stuff.",
-      promptMode: "append",
-      inheritContext: false,
-      runInBackground: false,
-    };
-    const prompt = buildAgentPrompt(config, "/workspace", env);
-    expect(prompt).not.toContain("<sub_agent_context>");
-    expect(prompt).not.toContain("<inherited_system_prompt>");
-    expect(prompt).toContain(GENERIC_BASE);
-    expect(prompt).toContain("Extra stuff.");
-  });
-
   // Patch 3 (RepOne #443): inject <active_agent name="..."/> tag so downstream
   // extensions (e.g. @gotgenes/pi-permission-system) can resolve per-agent
   // policy by parsing the child's system prompt.
   describe("active_agent tag injection", () => {
     it("includes <active_agent name=...> tag in replace mode after identity prefix", () => {
-      const config: AgentConfig = {
-        name: "Explore",
-        description: "Explore",
-        toolNames: [],
-        systemPrompt: "You are an explorer.",
-        promptMode: "replace",
-        inheritContext: false,
-        runInBackground: false,
-      };
+      const config = makeAgentConfig({ name: "Explore", systemPrompt: "You are an explorer.", promptMode: "replace" });
       // Replace mode now places identity (parent/genericBase) first for KV
       // cache reuse; the tag follows after the cacheable prefix.
       const prompt = buildAgentPrompt(
@@ -302,15 +222,7 @@ describe("buildAgentPrompt", () => {
     });
 
     it("includes <active_agent name=...> tag in append mode after the identity", () => {
-      const config: AgentConfig = {
-        name: "general-purpose",
-        description: "Twin",
-        toolNames: [],
-        systemPrompt: "",
-        promptMode: "append",
-        inheritContext: false,
-        runInBackground: false,
-      };
+      const config = makeAgentConfig({ name: "general-purpose", systemPrompt: "", promptMode: "append" });
       const prompt = buildAgentPrompt(
         config,
         "/workspace",
@@ -326,29 +238,13 @@ describe("buildAgentPrompt", () => {
     });
 
     it("uses agent name verbatim in the tag (no escaping or normalization)", () => {
-      const config: AgentConfig = {
-        name: "my-custom-agent",
-        description: "Custom",
-        toolNames: [],
-        systemPrompt: "You are custom.",
-        promptMode: "replace",
-        inheritContext: false,
-        runInBackground: false,
-      };
+      const config = makeAgentConfig({ name: "my-custom-agent", systemPrompt: "You are custom.", promptMode: "replace" });
       const prompt = buildAgentPrompt(config, "/workspace", env);
       expect(prompt).toContain('<active_agent name="my-custom-agent"/>');
     });
 
     it("active_agent tag appears before envBlock in both modes", () => {
-      const replaceConfig: AgentConfig = {
-        name: "agent-a",
-        description: "Replace",
-        toolNames: [],
-        systemPrompt: "Replace agent.",
-        promptMode: "replace",
-        inheritContext: false,
-        runInBackground: false,
-      };
+      const replaceConfig = makeAgentConfig({ name: "agent-a", systemPrompt: "Replace agent.", promptMode: "replace" });
       const replacePrompt = buildAgentPrompt(replaceConfig, "/workspace", env);
       const tagIdx = replacePrompt.indexOf('<active_agent name="agent-a"/>');
       const envIdx = replacePrompt.indexOf("# Environment");
@@ -357,15 +253,7 @@ describe("buildAgentPrompt", () => {
       expect(tagIdx).toBeGreaterThan(0);
       expect(envIdx).toBeGreaterThan(tagIdx);
 
-      const appendConfig: AgentConfig = {
-        name: "agent-b",
-        description: "Append",
-        toolNames: [],
-        systemPrompt: "",
-        promptMode: "append",
-        inheritContext: false,
-        runInBackground: false,
-      };
+      const appendConfig = makeAgentConfig({ name: "agent-b", systemPrompt: "", promptMode: "append" });
       const appendPrompt = buildAgentPrompt(
         appendConfig,
         "/workspace",
@@ -455,27 +343,11 @@ describe("buildAgentPrompt", () => {
     }
 
     function appendConfig(): AgentConfig {
-      return {
-        name: "twin",
-        description: "Twin",
-        toolNames: [],
-        systemPrompt: "",
-        promptMode: "append",
-        inheritContext: false,
-        runInBackground: false,
-      };
+      return makeAgentConfig({ name: "twin", systemPrompt: "", promptMode: "append" });
     }
 
     function replaceConfig(): AgentConfig {
-      return {
-        name: "specialist",
-        description: "Specialist",
-        toolNames: [],
-        systemPrompt: "You are a specialist.",
-        promptMode: "replace",
-        inheritContext: false,
-        runInBackground: false,
-      };
+      return makeAgentConfig({ name: "specialist", systemPrompt: "You are a specialist.", promptMode: "replace" });
     }
 
     describe("skills-catalogue anchor", () => {
@@ -1309,15 +1181,7 @@ describe("buildAgentPrompt", () => {
     const PORTABLE = ["You are a specialist.", "", "Extra instructions."].join("\n");
 
     function agentConfig(promptMode: "append" | "replace"): AgentConfig {
-      return {
-        name: "scout",
-        description: "Scout",
-        toolNames: [],
-        systemPrompt: "",
-        promptMode,
-        inheritContext: false,
-        runInBackground: false,
-      };
+      return makeAgentConfig({ name: "scout", systemPrompt: "", promptMode });
     }
 
     for (const promptMode of ["append", "replace"] as const) {
