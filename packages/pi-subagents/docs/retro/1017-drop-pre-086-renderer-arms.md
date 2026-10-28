@@ -54,3 +54,58 @@ The pi-subagents suite went from 2198 to 2189 tests: `prompts.test.ts` dropped f
 - Reviewer note, accepted: a forced prompt that carries a literal `Current working directory: /parent` line and no catalogue now keeps that line, where the footer arm used to cut it.
   Only extension-authored text reaches it, and the plan's "no reachable output change" claim covers Pi-rendered prompts only.
   The reviewer also observed that a Pi-shaped prompt whose `<cwd>` names another directory now falls to the unanchored arm and is cut at the `<skills>` wrapper, which the plan's edge-case table omits.
+
+## Stage: Final Retrospective (2026-10-28T02:43:09Z)
+
+### Session summary
+
+One trunk-lane session planned, implemented, shipped, and reviewed #1017: the ≤0.85 footer and lead-in arms are gone from `session/prompts.ts`, and a `fix:` makes the surviving unanchored fallback cut at Pi's `<skills>` wrapper.
+The Phase 23 ride-along landed a shared `makeAgentConfig` helper, and `pi-subagents` 25.0.5 shipped.
+This was Phase 23's last open step.
+
+### Observations
+
+#### What went well
+
+- The planning-time removal spike was the most useful input to the plan.
+  It turned 15 of 81 tests red, which gave the move-or-delete triage its exact list; the assessor then added that moved tests turn vacuous unless reasserted on section tokens.
+  Every killing mutation in steps 5 and 7 then reddened exactly the tests the plan predicted.
+- A scripted mutation battery (`/tmp/mut.py`) ran 9 named mutations in one tool call, asserting each pattern matched exactly once, printing the red tests per mutation, and restoring from the in-memory original.
+  Done one at a time, each mutation would have cost an `Edit`, a run, and a restore.
+- The planning gate led with a measured probe of the unanchored arm on a Pi 1.0-shaped prompt (a dangling `<skills>` line, the parent's `<project_context>` kept), and the operator answered in one pass with "fix it in this plan".
+- The pre-completion reviewer's re-derivation mandate drew an independent 8-shape byte-identity probe of base against HEAD, which pinned the shared-prefix invariant more strongly than the test suite does.
+
+#### What caused friction (agent side)
+
+- `instruction-violation` (self-identified) — Non-ASCII characters typed into `Edit` bodies arrived as escapes: `\u2265` in `oldText` twice and an em-dash once, all rejected, plus one em-dash `newText` landing as an escape that the hook decoded.
+  The `markdown-conventions` and `edit-tool` skills already say to copy such characters from a fresh `Read` or substitute them in a script.
+  Impact: 3 rejected edits, about 3 extra tool calls; no rework.
+- `instruction-violation` (self-identified) — In step 5 an `Edit` and a `Read` of `prompts.test.ts` went out in the same batch, and the `Read` returned "1 lines total" mid-format, which `AGENTS.md`'s `pi-autoformat` note forbids.
+  Impact: one wasted call.
+- `other` — The step-3 literal rewrite ran as a Python script, which `pi-autoformat` never sees, so it landed mis-indented and needed a second collapsing script; Biome's check passed on the mis-indented file, so no gate would have caught it.
+  Impact: one extra script.
+- `missing-context` (planning) — The plan's prose grep for the removed footer mechanism covered `src/` only, so a stale "footer" comment in `test/session/session-config.test.ts` reached the reviewer.
+  Impact: one review-fix commit and one delta review dispatch.
+- `missing-context` (planning) — The plan paired the deleted "keeps the identity ahead of the catalogue byte for byte" with a section-shape counterpart without opening it; that counterpart asserted only `startsWith(IDENTITY + "\n\n")`.
+  The `/plan-issue` rule to open each named test already covers this.
+  Impact: folded into the same review-fix commit.
+- `missing-context` (planning) — The plan's "changes no reachable output" claim was measured on Pi-rendered prompts only; the reviewer found a forced prompt with a literal footer line and no catalogue now keeps that line.
+  Accepted as extension-authored input, but the plan stated the claim more broadly than the evidence.
+  Impact: none beyond a recorded residual.
+- `missing-context` (planning) — Step 8's verification grep included `test/session`, whose `prompts.test.ts` cleanup the plan had scheduled for step 9.
+  Impact: a deviation note; no rework.
+
+#### What caused friction (user side)
+
+- Nothing noted: the one gate was answered directly, and no correction was needed.
+
+### Diagnostic details
+
+- **Model-performance correlation** — Planning and TDD ran on `anthropic/claude-opus-5-5`, and `/ship` on `anthropic/claude-sonnet-5-5`; the ship work is mechanical, so the split fits.
+  The Tidy-First assessor and both pre-completion reviews ran on `claude-sonnet-5-5` (from their transcripts); the reviewer's first round on that model produced the session's sharpest findings (the stale comment, the weak assertion, the broad reachability claim).
+- **Feedback-loop gap analysis** — Nothing notable: `pnpm run check` ran after each step that touched a shared type, each step ran its affected test files, and the full suite ran at the baseline and the end.
+
+### Changes made
+
+1. `.pi/prompts/tdd-plan.md`: step 3 (Verify the pins) allows a mutation battery as one script, with each pattern asserted to occur exactly once and the original restored after each run.
+2. `.pi/prompts/plan-issue.md`: the reworded-mechanism grep in Module-Level Changes now covers the package's `test/` comments as well as `.pi/skills/package-*/SKILL.md`.
