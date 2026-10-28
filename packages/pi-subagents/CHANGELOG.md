@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [25.0.5](https://github.com/gotgenes/pi-packages/compare/pi-subagents-v25.0.4...pi-subagents-v25.0.5) (2026-10-28)
+
+
+### Bug Fixes
+
+* **pi-subagents:** drop a forced parent prompt's whole skills section from a child's identity ([#1017](https://github.com/gotgenes/pi-packages/issues/1017)) ([8593f1d](https://github.com/gotgenes/pi-packages/commit/8593f1d8f8c9d42a249cde2830567207995a5661))
+
+### Documentation
+
+* **pi-subagents:** describe the prompt layers Pi renders today ([#1017](https://github.com/gotgenes/pi-packages/issues/1017)) ([eac8a2e](https://github.com/gotgenes/pi-packages/commit/eac8a2e39ac4ff2405079169a8e4fe460115d964))
+
 ## [25.0.4](https://github.com/gotgenes/pi-packages/compare/pi-subagents-v25.0.3...pi-subagents-v25.0.4) (2026-10-25)
 
 
