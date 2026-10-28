@@ -40,4 +40,33 @@ I also filed [#1092] for `pi-permission-model-judge` reading an untrusted projec
   - A shared `boundedArray` helper.
 - Roadmap-fit: neither package has an open improvement phase, so [#1092] got no disposition.
 
+## Stage: Implementation — TDD (2026-10-28T03:43:17Z)
+
+### Session summary
+
+I ran all four TDD steps, each as its own commit: two `fix(<pkg>)` zod 4.6.7 bumps (each crediting the reporter with a `Co-authored-by` trailer), then the two `fix(<pkg>)!:` array bounds.
+Tests went from 6413 to 6428 in `pi-permission-system` and from 69 to 72 in `pi-permission-model-judge`.
+The pre-completion reviewer returned PASS.
+
+### Observations
+
+- **Lockfile path.**
+  Step 1's `pnpm install` left intermediate peer-variant entries, so Step 2's lockfile diff alone showed 467 changed lines.
+  The net diff from the plan commit was exactly the spike's 110 lines of zod-only swaps, with zero `zod@4.4.3` entries.
+  Judge a multi-step lockfile change by its net diff, not the per-commit stat.
+- **Union-path deviation.**
+  zod reports an `invalid_union` arm's issues with paths relative to the union, not absolute (`[]`, not `["t", "effects"]`).
+  The `leafIssues` test helper now prefixes each union's own path while it recurses.
+  The plan's assertion design held; only the helper's path handling changed.
+- **Mutations:** every one killed exactly the predicted tests, plus the schema-parity pin.
+  - Dropping `authorizerChain`'s `.max` killed 1 row; dropping `piInfrastructureReadPaths`' killed its row and the loader test.
+  - Dropping `declaredEffectsSchema`'s `.max` killed all 3 effects rows.
+  - Cap 999 killed all 7 acceptance rows.
+  - Pinning zod 4.4.3 killed all 7 rejection rows and the loader test, while the acceptance rows stayed green.
+  - In model-judge, both mutations killed the predicted tests.
+- **Doc deviation:** the plan predicted `architecture.md` unchanged, but its `config-schema.ts` module-tree entry got a constraint sentence on the array bound; the reviewer judged it sound.
+- I first inserted the `pi-permission-system` `commandEffects` cap sentence between two table rows; I moved it below the table before committing.
+- Pre-completion reviewer: PASS.
+  It re-derived six `z.array` sites, all bounded, and found one zod resolution (4.6.7) in the lockfile.
+
 [#1092]: https://github.com/gotgenes/pi-packages/issues/1092
