@@ -69,4 +69,64 @@ The pre-completion reviewer returned PASS.
 - Pre-completion reviewer: PASS.
   It re-derived six `z.array` sites, all bounded, and found one zod resolution (4.6.7) in the lockfile.
 
+## Stage: Final Retrospective (2026-10-28T03:53:13Z)
+
+### Session summary
+
+One process ran all four stages: planning and TDD on `claude-opus-5-5`, ship on `claude-sonnet-5-5`, and this retro on `claude-opus-5-5`.
+It shipped `pi-permission-system` 42.0.0 and `pi-permission-model-judge` 4.0.0, which raise zod to `^4.6.7` and cap every config array at 1,000 entries.
+It also filed [#1092] for the judge reading an untrusted project's config.
+
+### Observations
+
+#### What went well
+
+- **Reading the dependency's compiled source reshaped the fix.**
+  The reporter only hedged that 4.6.6 "may not be completely fixed".
+  Reading `capSize` in zod 4.6.7's `v4/core/schemas.js` confirmed it: unbounded arrays still walk every element, and records are not capped at all.
+  That turned a version bump into a bound on every array.
+- **A test that pins the dependency floor.**
+  The rejection rows assert one `too_big` issue and no per-element issue, which only zod 4.6.6 and later produce.
+  Pinning the lockfile back to `zod@4.4.3` as a killing mutation turned all seven rows and the loader test red while the acceptance rows stayed green.
+  A dependency floor became a tested claim rather than a manifest line.
+- **The Tidy-First assessor's value was a test-design catch, not a tidying.**
+  It recommended no preparatory commit, but it probed zod and found that at a union site the top-level issue count is 1 under every version, so the planned assertion would have passed on 4.4.3.
+  The plan switched to flattened leaf issues before any test was written.
+
+#### What caused friction (agent side)
+
+- `instruction-violation` (tool-caught): the first `ask_user` gate went out with no visible briefing; the substance existed only in reasoning, and the tool rejected the call.
+  The operator then asked exactly what the briefing would have answered (are we exposed, and is the CVE really fixed upstream?).
+  Impact: one rejected gate and one question round, no rework.
+  The `clarification-gates` "Substance first" rule already covers this, and the tool now enforces it.
+- `premature-convergence`: in that first option set I marked "raise the floor in both packages" as recommended, even though my own source read showed the floor alone does not bound the memory our unbounded arrays can force.
+  The option that met the goal (floor plus `.max()`) carried a "behavior change" price and no recommendation.
+  The operator redirected ("propose a bound for the array").
+  Impact: one extra gate round; the plan was written once, after the redirect.
+- `missing-context`: the planning probe measured leaf-issue counts at union sites, but not leaf paths. zod reports an `invalid_union` arm's issues relative to the union, so Step 3's path assertion failed until `leafIssues` prefixed the union's own path.
+  Impact: one extra edit and test run during Green.
+  The probe validated a different value than the one the test asserts.
+- `other`: I anchored a docs insertion on a table row, which put a paragraph inside the `commandEffects` field table.
+  I also guessed a heading anchor (`#configuration-files`).
+  I caught both by grepping before lint.
+  Impact: two extra edits.
+
+#### What caused friction (user side)
+
+- None that cost rework.
+  The operator's question about exposure and the upstream fix's completeness, and the direction to "propose a bound", were the decisive strategic inputs.
+  Both arrived because the first gate under-briefed, not because context was withheld.
+
+### Diagnostic details
+
+- **Model-performance correlation:** planning and TDD ran on `claude-opus-5-5`; ship, which was mechanical (gates, CI watch, release dispatch), ran on `claude-sonnet-5-5`.
+  Both subagents (`tidy-first-assessor`, `pre-completion-reviewer`) ran on `claude-sonnet-5-5`, per their transcripts.
+  The assessor's union-assertion finding shows a sonnet assessor producing high-value judgment; no mismatch.
+- **Feedback-loop gap analysis:** every TDD step ran its own test files, then the package suite, `check`, and `lint`, before its commit; no gap.
+
+### Changes made
+
+1. `.pi/skills/clarification-gates/SKILL.md`: under `## The option space`, added the mirror of the `recommended`-option rule.
+   Recommending a cheap option the evidence shows misses the goal now requires naming why the residual is acceptable.
+
 [#1092]: https://github.com/gotgenes/pi-packages/issues/1092
